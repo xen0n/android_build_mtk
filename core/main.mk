@@ -62,6 +62,8 @@ TOP := .
 TOPDIR :=
 
 BUILD_SYSTEM := $(TOPDIR)build/core
+BUILD_SYSTEM_MTK_EXTENSION := $(TOPDIR)mediatek/build/android
+
 
 # This is the default target.  It must be the first declared target.
 .PHONY: droid
@@ -94,6 +96,7 @@ include $(BUILD_SYSTEM)/help.mk
 # Set up various standard variables based on configuration
 # and host information.
 include $(BUILD_SYSTEM)/config.mk
+include $(BUILD_SYSTEM_MTK_EXTENSION)/config.mk
 
 # This allows us to force a clean build - included after the config.mk
 # environment setup is done, but before we generate any dependencies.  This
@@ -337,6 +340,10 @@ else # !user_variant
   ADDITIONAL_DEFAULT_PROPERTIES += ro.allow.mock.location=1
 endif # !user_variant
 
+
+# always enable aed
+ADDITIONAL_DEFAULT_PROPERTIES += persist.mtk.aee.aed=on
+
 ifeq (true,$(strip $(enable_target_debugging)))
   # Target is more debuggable and adbd is on by default
   ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
@@ -346,6 +353,20 @@ else # !enable_target_debugging
   # Target is less debuggable and adbd is off by default
   ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=0
 endif # !enable_target_debugging
+
+# default usb function
+ifeq ($(strip $(MTK_MASS_STORAGE)),yes)
+  ADDITIONAL_DEFAULT_PROPERTIES += persist.sys.usb.config=mass_storage
+else
+  ADDITIONAL_DEFAULT_PROPERTIES += persist.sys.usb.config=mtp
+endif
+
+# serial port open or not
+ifeq ($(strip $(MTK_SERIAL_PORT_DEFAULT_ON)),yes)
+ADDITIONAL_DEFAULT_PROPERTIES += persist.service.acm.enable=1
+else
+ADDITIONAL_DEFAULT_PROPERTIES += persist.service.acm.enable=0
+endif
 
 ## eng ##
 
@@ -444,12 +465,48 @@ subdirs += build/tools/acp
 endif
 
 else	# !SDK_ONLY
+ifeq ($(BUILD_TINY_ANDROID), true)
+
+# TINY_ANDROID is a super-minimal build configuration, handy for board
+# bringup and very low level debugging
+
+subdirs := \
+	bionic \
+	system/core \
+	system/extras/ext4_utils \
+	system/extras/su \
+	build/libs \
+	build/target \
+	build/tools/acp \
+	external/gcc-demangle \
+	external/mksh \
+	external/openssl \
+	external/yaffs2 \
+	external/zlib \
+	external/stlport \
+	external/e2fsprogs \
+        mediatek/protect-bsp/external/xlog/libxlog
+
+ifeq ($(BUILD_MTK_LDVT), true)
+subdirs += $(MTK_PATH_PLATFORM)/external/ldvt
+subdirs += $(MTK_PATH_PLATFORM)/external/mhal/src/core/drv
+subdirs += $(MTK_PATH_PLATFORM)/external/mhal/src/core/pipe
+subdirs += $(MTK_PATH_PLATFORM)/external/mhal/src/custom
+#subdirs += $(MTK_PATH_SOURCE)protect-bsp/platform/mt6589/hardware/dpframework
+subdirs += $(MTK_PATH_SOURCE)protect-bsp/platform/mt6589/hardware/m4u
+subdirs += $(MTK_PATH_SOURCE)protect-bsp/hardware/dpframework
+subdirs += frameworks/native/libs/utils
+endif
+
+else	# !BUILD_TINY_ANDROID
 #
 # Typical build; include any Android.mk files we can find.
 #
 subdirs := $(TOP)
 
 FULL_BUILD := true
+
+endif	# !BUILD_TINY_ANDROID
 
 endif	# !SDK_ONLY
 
@@ -761,13 +818,25 @@ endif
 userdatatarball: $(INSTALLED_USERDATATARBALL_TARGET)
 
 .PHONY: cacheimage
+ifeq ($(TARGET_USERIMAGES_USE_EXT4),true)
 cacheimage: $(INSTALLED_CACHEIMAGE_TARGET)
+else
+cacheimage: 
+	@echo "EMMC feature NOT supported/disabled now(MTK_EMMC_SUPPORT=$(MTK_EMMC_SUPPORT)"
+endif
 
 .PHONY: vendorimage
 vendorimage: $(INSTALLED_VENDORIMAGE_TARGET)
 
 .PHONY: bootimage
 bootimage: $(INSTALLED_BOOTIMAGE_TARGET)
+
+.PHONY: secroimage
+secroimage: $(INSTALLED_SECROIMAGE_TARGET)
+
+ifeq ($(BUILD_TINY_ANDROID), true)
+INSTALLED_RECOVERYIMAGE_TARGET :=
+endif
 
 # phony target that include any targets in $(ALL_MODULES)
 .PHONY: all_modules
@@ -947,3 +1016,12 @@ showcommands:
 .PHONY: nothing
 nothing:
 	@echo Successfully read the makefiles.
+
+# dump comp. build info index (local path <--> module id)
+ifeq ($(DUMP_COMP_BUILD_INFO),true)
+  $(shell rm -f $(COMP_INDEX_TABLE))
+  $(shell rm -f $(COMP_INDEX_TABLE_PLUS))
+  $(call dump-words-to-file.mtk, $(COMP_INDEX_INFO), $(COMP_INDEX_TABLE)) 
+  $(call dump-words-to-file.mtk, $(COMP_INDEX_INFO_PLUS), $(COMP_INDEX_TABLE_PLUS))
+endif
+
