@@ -96,6 +96,7 @@ include $(BUILD_SYSTEM)/help.mk
 # Set up various standard variables based on configuration
 # and host information.
 include $(BUILD_SYSTEM)/config.mk
+include $(BUILD_SYSTEM_MTK_EXTENSION)/config.mk
 
 # This allows us to force a clean build - included after the config.mk
 # environment setup is done, but before we generate any dependencies.  This
