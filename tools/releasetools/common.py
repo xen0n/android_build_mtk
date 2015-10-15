@@ -274,6 +274,7 @@ def LoadInfoDict(input_file, input_dir=None):
   makeint("recovery_size")
   makeint("boot_size")
   makeint("fstab_version")
+  makeint("mtk_hardware")
 
   if d.get("no_recovery", False) == "true":
     d["fstab"] = None
@@ -411,7 +412,7 @@ def DumpInfoDict(d):
 
 
 def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
-                        has_ramdisk=False):
+                        has_ramdisk=False, mtk_flavor=None):
   """Build a bootable image from the specified sourcedir.
 
   Take a kernel, cmdline, and optionally a ramdisk directory from the input (in
@@ -521,12 +522,16 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
     if has_ramdisk:
       cmd.extend(["--ramdisk", ramdisk_img.name])
 
+    if info_dict.get("mtk_hardware"):
+      cmd.extend(["--mtk", mtk_flavor, ])
+
     img_unsigned = None
     if info_dict.get("vboot", None):
       img_unsigned = tempfile.NamedTemporaryFile()
       cmd.extend(["--output", img_unsigned.name])
     else:
-      cmd.extend(["--output", img.name])
+      cmd.extend(["--ramdisk", ramdisk_img.name,
+                "--output", img.name])
 
   p = Run(cmd, stdout=subprocess.PIPE)
   p.communicate()
@@ -638,6 +643,9 @@ def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
   otherwise look for it under 'unpack_dir'/IMAGES, otherwise construct it from
   the source files in 'unpack_dir'/'tree_subdir'."""
 
+  if info_dict is None:
+    info_dict = OPTIONS.info_dict
+
   prebuilt_path = os.path.join(unpack_dir, "BOOTABLE_IMAGES", prebuilt_name)
   if os.path.exists(prebuilt_path):
     print("using prebuilt %s from BOOTABLE_IMAGES..." % prebuilt_name)
@@ -661,9 +669,12 @@ def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
                  info_dict.get("recovery_as_boot") == "true")
 
   fs_config = "META/" + tree_subdir.lower() + "_filesystem_config.txt"
+  mtk_flavor = None
+  if info_dict.get("mtk_hardware"):
+    mtk_flavor = os.path.splitext(os.path.basename(name))[0]
   data = _BuildBootableImage(os.path.join(unpack_dir, tree_subdir),
                              os.path.join(unpack_dir, fs_config),
-                             info_dict, has_ramdisk)
+                             info_dict, has_ramdisk, mtk_flavor)
   if data:
     return File(name, data)
   return None
