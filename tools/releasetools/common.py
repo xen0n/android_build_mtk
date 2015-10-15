@@ -182,6 +182,7 @@ def LoadInfoDict(input_file):
   makeint("recovery_size")
   makeint("boot_size")
   makeint("fstab_version")
+  makeint("mtk_hardware")
 
   d["fstab"] = LoadRecoveryFSTab(read_helper, d["fstab_version"], d["device_type"])
   d["build.prop"] = LoadBuildProp(read_helper)
@@ -306,7 +307,7 @@ def DumpInfoDict(d):
     print "%-25s = (%s) %s" % (k, type(v).__name__, v)
 
 
-def BuildBootableImage(sourcedir, fs_config_file, info_dict=None):
+def BuildBootableImage(sourcedir, fs_config_file, info_dict=None, mtk_flavor=None):
   """Take a kernel, cmdline, and ramdisk directory from the input (in
   'sourcedir'), and turn them into a boot image.  Return the image
   data, or None if sourcedir does not appear to contains files for
@@ -394,6 +395,9 @@ def BuildBootableImage(sourcedir, fs_config_file, info_dict=None):
     if args and args.strip():
       cmd.extend(shlex.split(args))
 
+    if info_dict.get("mtk_hardware"):
+      cmd.extend(["--mtk", mtk_flavor, ])
+
     img_unsigned = None
     if info_dict.get("vboot", None):
       img_unsigned = tempfile.NamedTemporaryFile()
@@ -402,7 +406,7 @@ def BuildBootableImage(sourcedir, fs_config_file, info_dict=None):
     else:
       cmd.extend(["--ramdisk", ramdisk_img.name,
                 "--output", img.name])
-  
+
   p = Run(cmd, stdout=subprocess.PIPE)
   p.communicate()
   assert p.returncode == 0, "mkbootimg of %s image failed" % (
@@ -455,6 +459,9 @@ def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
   otherwise construct it from the source files in
   'unpack_dir'/'tree_subdir'."""
 
+  if info_dict is None:
+    info_dict = OPTIONS.info_dict
+
   prebuilt_path = os.path.join(unpack_dir, "BOOTABLE_IMAGES", prebuilt_name)
   if os.path.exists(prebuilt_path):
     print "using prebuilt %s from BOOTABLE_IMAGES..." % (prebuilt_name,)
@@ -467,9 +474,13 @@ def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
 
   print "building image from target_files %s..." % (tree_subdir,)
   fs_config = "META/" + tree_subdir.lower() + "_filesystem_config.txt"
+  mtk_flavor = None
+  if info_dict.get("mtk_hardware"):
+    mtk_flavor = os.path.splitext(os.path.basename(name))[0]
   data = BuildBootableImage(os.path.join(unpack_dir, tree_subdir),
                             os.path.join(unpack_dir, fs_config),
-                            info_dict)
+                            info_dict,
+                            mtk_flavor)
   if data:
     return File(name, data)
   return None
