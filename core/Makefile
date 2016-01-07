@@ -537,6 +537,10 @@ ifeq ($(strip $(BOARD_KERNEL_SEPARATED_DT)),true)
   BOOTIMAGE_EXTRA_DEPS    := $(INSTALLED_DTIMAGE_TARGET)
 endif
 
+ifeq ($(strip $(BOARD_HAS_MTK_HARDWARE)),true)
+  INTERNAL_BOOTIMAGE_ARGS += --mtk boot
+endif
+
 INSTALLED_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot.img
 
 ifeq ($(TARGET_BOOTIMAGE_USE_EXT2),true)
@@ -936,6 +940,9 @@ endif
 ifeq ($(strip $(BOARD_KERNEL_SEPARATED_DT)),true)
   INTERNAL_RECOVERYIMAGE_ARGS += --dt $(INSTALLED_DTIMAGE_TARGET)
   RECOVERYIMAGE_EXTRA_DEPS    := $(INSTALLED_DTIMAGE_TARGET)
+endif
+ifeq ($(strip $(BOARD_HAS_MTK_HARDWARE)),true)
+  INTERNAL_RECOVERYIMAGE_ARGS += --mtk recovery
 endif
 
 # Keys authorized to sign OTA packages this build will accept.  The
