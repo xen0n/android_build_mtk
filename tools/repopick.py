@@ -66,7 +66,8 @@ def fetch_query_via_ssh(remote_url, query):
 
 
     out = subprocess.check_output(['ssh', '-x', '-p{0}'.format(port), userhost, 'gerrit', 'query', '--format=JSON --patch-sets --current-patch-set', query])
-
+    if not hasattr(out, 'encode'):
+        out = out.decode()
     reviews = []
     for line in out.split('\n'):
         try:
@@ -82,7 +83,7 @@ def fetch_query_via_ssh(remote_url, query):
                     'fetch': {
                         'ssh': {
                             'ref': patch_set['ref'],
-                            'url': u'ssh://{0}:{1}/{2}'.format(userhost, port, data['project'])
+                            'url': 'ssh://{0}:{1}/{2}'.format(userhost, port, data['project'])
                         }
                     }
                 } for patch_set in data['patchSets']},
@@ -105,7 +106,7 @@ def fetch_query_via_http(remote_url, query):
     reviews = json.loads(data[5:])
 
     for review in reviews:
-        review[u'number'] = review.pop('_number')
+        review['number'] = review.pop('_number')
 
     return reviews
 
@@ -151,6 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--topic', help='pick all commits from a specified topic')
     parser.add_argument('-Q', '--query', help='pick all commits using the specified query')
     parser.add_argument('-g', '--gerrit', default=default_gerrit, help='Gerrit Instance to use. Form proto://[user@]host[:port]')
+    parser.add_argument('-e', '--exclude', nargs=1, help='exclude a list of commit numbers separated by a ,')
     args = parser.parse_args()
     if not args.start_branch and args.abandon_first:
         parser.error('if --abandon-first is set, you must also give the branch name with --start-branch')
@@ -183,8 +185,10 @@ if __name__ == '__main__':
     if args.abandon_first:
         # Determine if the branch already exists; skip the abandon if it does not
         plist = subprocess.check_output(['repo', 'info'])
+        if not hasattr(plist, 'encode'):
+            plist = plist.decode()
         needs_abandon = False
-        for pline in plist:
+        for pline in plist.splitlines():
             matchObj = re.match(r'Local Branches.*\[(.*)\]', pline)
             if matchObj:
                 local_branches = re.split('\s*,\s*', matchObj.group(1))
@@ -237,12 +241,20 @@ if __name__ == '__main__':
     # make list of things to actually merge
     mergables = []
 
+    # If --exclude is given, create the list of commits to ignore
+    exclude = []
+    if args.exclude:
+        exclude = args.exclude[0].split(',')
+
     for change in change_numbers:
         patchset = None
         if '/' in change:
             (change, patchset) = change.split('/')
-        change = int(change)
 
+        if change in exclude:
+            continue
+
+        change = int(change)
         review = [x for x in reviews if x['number'] == change][0]
         mergables.append({
             'subject': review['subject'],
