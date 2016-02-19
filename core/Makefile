@@ -1645,7 +1645,11 @@ ifdef TARGET_RELEASETOOL_FACTORY_FROM_TARGET_SCRIPT
 	$(hide) echo "factory_from_target_script=$(TARGET_RELEASETOOL_FACTORY_FROM_TARGET_SCRIPT)" >> $(zip_root)/META/misc_info.txt
 endif
 ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+ifneq ($(BOARD_DONT_USE_MTK_BOOTIMG),true)
 	$(hide) echo "mtk_hardware=1" >> $(zip_root)/META/misc_info.txt
+else
+	$(hide) echo "mtk_hardware=0" >> $(zip_root)/META/misc_info.txt
+endif
 else
 	$(hide) echo "mtk_hardware=0" >> $(zip_root)/META/misc_info.txt
 endif
